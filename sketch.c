@@ -64,7 +64,6 @@ int operand(int code)
 
 void movex(state *s, int operand)
 {
-  printf("%d\n",operand );
   s->xcurrent = s->xcurrent + operand;
 }
 
@@ -114,7 +113,7 @@ void readf(display *d, state *s, char *filename)
     int code = (byte & 0xFF);
   //  int opc = opcode(code);
   //  int oper = operand(code);
-    pause(d,400);
+    //pause(d,400);
     operation(d,s,code);
     // if(opc == 0)
     // {
@@ -134,9 +133,7 @@ void readf(display *d, state *s, char *filename)
     // }
     byte = fgetc(in);
   }
-  int code = (byte & 0xFF);
-  pause(d,400);
-  operation(d,s,code);
+  fclose(in);
 }
 
 void testOpCode()
@@ -151,33 +148,31 @@ void testOperand()
 {
   assert(operand(0x5f) == 0x1f);
   assert(operand(0x0f) == 0x0f);
-  assert(operand(0xff) == 0x3f);
+  assert(operand(0xff) == -1);
   assert(operand(0x8e) == 0x0e);
-  assert(operand(0x88ef) == 0x8ef);
 }
 
-// void testMovex()
-// {
-//   state *s = malloc(sizeof(state));
-//   s->xcurrent = 0;
-//   movex(s,8)
-//   assert(s->xcurrent == 8);
-//   free(s);
-//
-// }
+void testMovex()
+{
+  state *s = malloc(sizeof(state));
+  s->xcurrent = 0;
+  movex(s,8);
+  assert(s->xcurrent == 8);
+  free(s);
+}
 
 void test()
 {
   testOpCode();
   testOperand();
-  // testMovex();
+  testMovex();
   printf("all tests passed\n");
 }
 
 
 int main(int n, char *args[n])
 {
-  char *t = "test2";
+  char *t = "tests";
   if (strcmp(args[1],t) == 0)
   {
     test();
