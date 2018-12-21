@@ -15,8 +15,10 @@ struct state
   int xcurrent;
   int ycurrent;
   bool pen;
-  //bool flag;
-  //bool operandcurrent;
+  //stage 2
+  bool flag;
+  unsigned int opcurrent;
+  int dt;
 
 };
 typedef struct state state;
@@ -29,7 +31,11 @@ state *newState()
   s->xcurrent = 0;
   s->ycurrent = 0;
   s->pen = false;
-
+//  s->pen = true;
+  //new stuff for stage 2
+  s->flag = false;
+  s->opcurrent = 0;
+  s->dt = 0;
   return s;
 }
 
@@ -39,13 +45,29 @@ int opcode(int code)
   return opcode;
 }
 
-int operand(int code)
+int getoperand(state *s, int code)
 {
-  int operand = code & 0x3F;
-  if((operand>>5) == 1)
+  int operand;
+  if(s->flag == false)
   {
-    operand |= 0xffffffc0;
+    operand = code & 0x3F;
+    if((operand>>5) == 1)
+    {
+      operand |= 0xffffffc0;
+    }
+
   }
+
+  if(s->flag == true)
+  {
+    operand = code & 0x3f;
+  }
+
+  // int operand = code & 0x3F;
+  // if((operand>>5) == 1)
+  // {
+  //   operand |= 0xffffffc0;
+  // }
   return operand;
 }
 
@@ -64,24 +86,50 @@ int operand(int code)
 
 void movex(state *s, int operand)
 {
-  s->xcurrent = s->xcurrent + operand;
+  //s->xcurrent = s->xcurrent + operand;
+  s->opcurrent = (s->opcurrent << 6) | operand;
+  s->xcurrent = s->xcurrent + s->opcurrent;
+  s->flag = false;
+  s->opcurrent = 0;
 }
 
 void movey(state *s, display *d, int operand)
 {
-  s->ycurrent = s->ycurrent + operand;
-  if(s->pen)
+//  s->ycurrent = s->ycurrent + operand;
+  s->opcurrent = (s->opcurrent << 6) | operand;
+  s->ycurrent = s->ycurrent + s->opcurrent;
+  if(s->pen == true)
   {
+    printf("your x values called by line are %d, %d\n",s->xprevious, s->xcurrent);
     line(d,s->xprevious, s->yprevious, s->xcurrent,s->ycurrent);
+
   }
   s->xprevious = s->xcurrent;
+  printf("your x values are %d, %d\n", s->xprevious, s->xcurrent);
   s->yprevious = s->ycurrent;
+  s->flag = false;
+  s->opcurrent = 0;
 }
+
+void append(state *s, display *d, int code)
+{
+  if(s->flag == true)
+  {
+    s->opcurrent = (s->opcurrent << 6) | (code & 0x3f);
+  }
+
+  else
+  {
+    s->opcurrent = getoperand(s,code);
+    s->flag = true;
+  }
+}
+
 
 void operation(display *d, state *s, int code)
 {
   int opc = opcode(code);
-  int oper = operand(code);
+  int oper = getoperand(s,code);
 
   if(opc == 0)
   {
@@ -93,12 +141,60 @@ void operation(display *d, state *s, int code)
     movey(s,d,oper);
   }
 
+  if(opc == 2)
+  {
+    append(s,d,code);
+  }
+
   if(opc == 3)
   {
-    s->pen = s->pen ^ 1;
-    s->xprevious = s->xcurrent;
-    s->yprevious = s->ycurrent;
+    if(code == 0xc0)
+    {
+      s->pen = s->pen ^ 1;
+      // s->xprevious = s->xcurrent;
+      // s->yprevious = s->ycurrent;
+    }
+
+    if(code == 0xc1)
+    {
+      if(s->opcurrent == 0)
+      {
+        pause(d, s->dt);
+      }
+      else
+      {
+        s->dt = s->opcurrent;
+        pause(d, s->dt);
+      }
+      // s->opcurrent = 0;
+      // s->flag = false;
+    }
+
+    if(code == 0xc2)
+    {
+      clear(d);
+    }
+
+    if(code == 0xc3)
+    {
+      key(d);
+    }
+
+    if(code == 0xc4)
+    {
+      colour(d, s->opcurrent);
+    }
+    s->opcurrent = 0;
+    s->flag = false;
   }
+
+
+  // if(opc == 3)
+  // {
+  //   s->pen = s->pen ^ 1;
+  //   s->xprevious = s->xcurrent;
+  //   s->yprevious = s->ycurrent;
+  // }
 
 }
 
@@ -112,8 +208,8 @@ void readf(display *d, state *s, char *filename)
     //int byte = fgetc(in);
     int code = (byte & 0xFF);
   //  int opc = opcode(code);
-  //  int oper = operand(code);
-    //pause(d,400);
+  //  int oper = getoperand(code);
+    //pause(d,50);
     operation(d,s,code);
     // if(opc == 0)
     // {
@@ -144,13 +240,13 @@ void testOpCode()
   assert(opcode(0x8e) == 0x02);
 }
 
-void testOperand()
-{
-  assert(operand(0x5f) == 0x1f);
-  assert(operand(0x0f) == 0x0f);
-  assert(operand(0xff) == -1);
-  assert(operand(0x8e) == 0x0e);
-}
+// void testgetoperand()
+// {
+//   assert(getoperand(0x5f) == 0x1f);
+//   assert(getoperand(0x0f) == 0x0f);
+//   assert(getoperand(0xff) == -1);
+//   assert(getoperand(0x8e) == 0x0e);
+// }
 
 void testMovex()
 {
@@ -164,7 +260,7 @@ void testMovex()
 void test()
 {
   testOpCode();
-  testOperand();
+  //testgetoperand();
   testMovex();
   printf("all tests passed\n");
 }
